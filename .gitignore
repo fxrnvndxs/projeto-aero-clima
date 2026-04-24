@@ -1,0 +1,19 @@
+# Ambientes Virtuais Python
+venv/
+.env
+__pycache__/
+
+# Logs e arquivos temporários de execução
+*.log
+.pytest_cache/
+
+# Arquivos de Dados Locais
+data/
+*.csv
+*.parquet
+*.json
+*.delta
+
+# Arquivos de configuração de IDEs 
+.vscode/
+.idea/
