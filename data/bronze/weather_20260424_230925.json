@@ -1,0 +1,137 @@
+{
+    "POA": {
+        "coord": {
+            "lon": -51.17,
+            "lat": -29.99
+        },
+        "weather": [
+            {
+                "id": 803,
+                "main": "Clouds",
+                "description": "nublado",
+                "icon": "04n"
+            }
+        ],
+        "base": "stations",
+        "main": {
+            "temp": 20.1,
+            "feels_like": 20.78,
+            "temp_min": 20,
+            "temp_max": 20.4,
+            "pressure": 1013,
+            "humidity": 100,
+            "sea_level": 1013,
+            "grnd_level": 1011
+        },
+        "visibility": 7000,
+        "wind": {
+            "speed": 1.03,
+            "deg": 0
+        },
+        "clouds": {
+            "all": 75
+        },
+        "dt": 1777082963,
+        "sys": {
+            "type": 1,
+            "id": 8467,
+            "country": "BR",
+            "sunrise": 1777024142,
+            "sunset": 1777064176
+        },
+        "timezone": -10800,
+        "id": 3473920,
+        "name": "S\u00e3o Jo\u00e3o",
+        "cod": 200
+    },
+    "GRU": {
+        "coord": {
+            "lon": -46.47,
+            "lat": -23.43
+        },
+        "weather": [
+            {
+                "id": 800,
+                "main": "Clear",
+                "description": "c\u00e9u limpo",
+                "icon": "01n"
+            }
+        ],
+        "base": "stations",
+        "main": {
+            "temp": 20.09,
+            "feels_like": 20.32,
+            "temp_min": 20.07,
+            "temp_max": 22.34,
+            "pressure": 1018,
+            "humidity": 83,
+            "sea_level": 1018,
+            "grnd_level": 924
+        },
+        "visibility": 10000,
+        "wind": {
+            "speed": 1.54,
+            "deg": 100
+        },
+        "clouds": {
+            "all": 0
+        },
+        "dt": 1777082964,
+        "sys": {
+            "type": 1,
+            "id": 8379,
+            "country": "BR",
+            "sunrise": 1777022572,
+            "sunset": 1777063490
+        },
+        "timezone": -10800,
+        "id": 3461786,
+        "name": "Guarulhos",
+        "cod": 200
+    },
+    "CGH": {
+        "coord": {
+            "lon": -46.65,
+            "lat": -23.62
+        },
+        "weather": [
+            {
+                "id": 800,
+                "main": "Clear",
+                "description": "c\u00e9u limpo",
+                "icon": "01n"
+            }
+        ],
+        "base": "stations",
+        "main": {
+            "temp": 21.8,
+            "feels_like": 22.07,
+            "temp_min": 21.46,
+            "temp_max": 21.94,
+            "pressure": 1018,
+            "humidity": 78,
+            "sea_level": 1018,
+            "grnd_level": 927
+        },
+        "visibility": 10000,
+        "wind": {
+            "speed": 1.54,
+            "deg": 70
+        },
+        "clouds": {
+            "all": 0
+        },
+        "dt": 1777082965,
+        "sys": {
+            "type": 1,
+            "id": 8446,
+            "country": "BR",
+            "sunrise": 1777022628,
+            "sunset": 1777063521
+        },
+        "timezone": -10800,
+        "id": 3461570,
+        "name": "Ibirapuera",
+        "cod": 200
+    }
+}
