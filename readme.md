@@ -11,6 +11,11 @@ O projeto passou por uma refatoração crítica focada em escalabilidade e redu�
 
 ![Gráfico de Redução de Tempo](notebooks/_images/time.png)
 
+### Monitoramento e Estabilidade (Near Real-Time)
+Após a estabilização, o pipeline mantém um regime de execução constante e saudável, operando de forma autônoma a cada 15 minutos com 100% de sucesso nas tarefas de integração e qualidade.
+
+![Muralha Verde de Execuções](notebooks/_images/pipesucess.png)
+
 ## Orquestração e Arquitetura de Dados
 O fluxo de processamento segue o padrão **Medallion (Bronze, Silver, Gold)**, orquestrado de forma paralela via *Databricks Workflows*. Isso permite que a ingestão de diferentes domínios (Voos e Clima) ocorra simultaneamente, otimizando o uso do cluster Serverless.
 
