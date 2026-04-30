@@ -1,5 +1,4 @@
 # Databricks notebook source
-# Databricks notebook source
 # MAGIC %md
 # MAGIC # Camada Bronze: Extracao Meteorologica
 # MAGIC **Projeto:** Aero Clima | **Modulo:** OpenWeather API | **Versao:** 3.1 (Resiliente)

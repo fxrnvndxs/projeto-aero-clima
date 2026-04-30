@@ -1,5 +1,4 @@
 # Databricks notebook source
-# Databricks notebook source
 # MAGIC %md
 # MAGIC # Camada Silver: Processamento Meteorologico
 # MAGIC **Projeto:** Aero Clima | **Modulo:** Tratamento OpenWeather | **Versao:** 3.0 (Modular)

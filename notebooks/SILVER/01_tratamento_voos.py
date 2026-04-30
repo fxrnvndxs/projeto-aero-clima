@@ -1,5 +1,4 @@
 # Databricks notebook source
-# Databricks notebook source
 # MAGIC %md
 # MAGIC # Camada Silver: Processamento de Voos
 # MAGIC **Projeto:** Aero Clima | **Modulo:** Tratamento OpenSky | **Versao:** 3.2 (Data Contract Integrado)

@@ -1,5 +1,4 @@
 # Databricks notebook source
-# Databricks notebook source
 # MAGIC %md
 # MAGIC # Camada Gold: Tabela Fato e Data Contract
 # MAGIC **Projeto:** Aero Clima | **Modulo:** Serving (Power BI) | **Versao:** 4.0 (Star Schema Raiz)
@@ -40,7 +39,7 @@ def enviar_alerta_operacional(rotina, status, mensagem):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. Construcao da Tabela Fato (Puramente Numerica/Chaves)
+# MAGIC ## 2. Construcao da Tabela Fato 
 
 # COMMAND ----------
 

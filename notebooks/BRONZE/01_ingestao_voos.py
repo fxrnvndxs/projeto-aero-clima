@@ -1,5 +1,4 @@
 # Databricks notebook source
-# Databricks notebook source
 # MAGIC %md
 # MAGIC # Camada Bronze: Extracao de Trafego Aereo
 # MAGIC **Projeto:** Aero Clima | **Modulo:** OpenSky API | **Versao:** 3.0 (Modular)

@@ -67,7 +67,7 @@ airports_data = [
 
 spark.createDataFrame(airports_data, schema=AIRPORTS_SCHEMA).write.format("delta").mode("overwrite").saveAsTable(TABLE_DIM_AIRPORTS)
 
-# 2.2 Dimensao Risco (Exigencia do Mentor)
+# 2.2 Dimensao Risco 
 RISK_SCHEMA = StructType([
     StructField("id_risco", IntegerType(), nullable=False),
     StructField("nivel_risco", StringType(), nullable=False),
@@ -117,10 +117,10 @@ df_voos_geo = df_voos.withColumn(
      .otherwise("GRU")
 )
 
-# Join Relacional (CORREÇÃO APLICADA AQUI)
-# Renomeamos a coluna do df_clima na hora do join para evitar duplicidade no Delta Lake
+from pyspark.sql.functions import broadcast
+
 df_joined = df_voos_geo.join(
-    df_clima.withColumnRenamed("timestamp_coleta", "timestamp_coleta_clima"),
+    broadcast(df_clima.withColumnRenamed("timestamp_coleta", "timestamp_coleta_clima")),
     on=df_voos_geo["aeroporto_proximo"] == F.col("aeroporto_sigla"),
     how="left"
 )
@@ -141,7 +141,7 @@ df_gold = (
     .withColumn("fk_risco", build_fk_risk_expression())
     .withColumn("fk_condicao", F.sha2(F.concat_ws("|", F.col("condicao_climatica"), F.col("descricao_climatica")), 256))
     .withColumn("timestamp_processamento", F.current_timestamp())
-    # Removendo as strings pesadas que sujavam a fato
+
     .drop("condicao_climatica", "descricao_climatica")
 )
 
