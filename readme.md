@@ -24,6 +24,16 @@ Foram aplicadas as seguintes melhorias:
 
 **Resultado:** O tempo de processamento foi reduzido de aproximadamente **165 minutos** para **menos de 2 minutos**, agora com garantia total de consistência em cenários de falha.
 
+![Gráfico de Redução de Tempo](notebooks/_images/time.png)
+
+---
+
+### Monitoramento e Estabilidade (Near Real-Time)
+
+Após a estabilização, o pipeline opera de forma contínua e previsível, com execuções automatizadas a cada 15 minutos. A "Muralha Verde" abaixo comprova a estabilidade e tolerância a falhas do fluxo de dados.
+
+![Muralha Verde de Execuções](notebooks/_images/pipesucess.png)
+
 ---
 
 ## Orquestração e Arquitetura de Dados
@@ -31,6 +41,8 @@ Foram aplicadas as seguintes melhorias:
 O pipeline segue o padrão **Medallion Architecture (Bronze, Silver, Gold)**, com orquestração via *Databricks Workflows*.
 
 A ingestão dos domínios de dados (Voos e Clima) é executada de forma paralela, otimizando o uso de recursos computacionais e reduzindo o tempo total de processamento.
+
+![Orquestração em Y](notebooks/_images/orch.png)
 
 ### Camadas do Lakehouse:
 
@@ -56,11 +68,20 @@ A chave primária (`id_operacao`) é gerada via hash (SHA-256) combinando a iden
 
 ## Stack Técnico
 
-* **Linguagem:** Python (OOP e decorators) e PySpark
+* **Linguagem:** Python (OOP) e PySpark
 * **Ambiente:** Databricks (Serverless Compute)
 * **Armazenamento:** Delta Lake (transações ACID)
 * **Orquestração:** Databricks Workflows
 * **Consumo:** Power BI via Databricks SQL Warehouse
+
+---
+
+## Estrutura do Repositório
+
+* `/notebooks/BRONZE`: Ingestão de dados e autenticação com APIs externas
+* `/notebooks/SILVER`: Transformações, validações e padronização (Data Contracts via OOP)
+* `/notebooks/GOLD`: Motor de SLA, modelagem dimensional (Star Schema) e cruzamento espacial
+* `/legacy_local_ingestion`: Versão inicial do projeto (execução local)
 
 ---
 
