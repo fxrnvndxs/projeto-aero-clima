@@ -92,3 +92,37 @@ df_voos_silver = (
 )
 
 print(f"Processamento concluido. Registros inseridos na tabela {TABLE_VOOS_SILVER}.")
+
+# COMMAND ----------
+
+from pyspark.sql import functions as F
+from datetime import datetime
+
+# Criamos um dataframe inicial
+voo_fantasma = spark.createDataFrame([
+    ("MOCK_POA_01", -29.99, -51.17, 15.0, datetime.now())
+], ["icao24", "latitude", "longitude", "velocity", "timestamp_coleta"])
+
+# Adicionamos as colunas faltantes e forçamos o cast para Float (FloatType)
+voo_fantasma_completo = (
+    voo_fantasma
+    .withColumn("latitude", F.col("latitude").cast("float"))
+    .withColumn("longitude", F.col("longitude").cast("float"))
+    .withColumn("callsign", F.lit("TEST_POA"))
+    .withColumn("origin_country", F.lit("Brazil"))
+    .withColumn("on_ground", F.lit(False))
+    .withColumn("velocity_ms", F.col("velocity").cast("float"))
+    .withColumn("true_track_deg", F.lit(0.0).cast("float"))
+    .withColumn("vertical_rate_ms", F.lit(0.0).cast("float"))
+    .drop("velocity")
+)
+
+# Injetamos na tabela Silver
+(
+    voo_fantasma_completo.write
+    .format("delta")
+    .mode("append")
+    .saveAsTable("workspace.default.voos_silver")
+)
+
+print("Voo fantasma inserido com sucesso em POA!")

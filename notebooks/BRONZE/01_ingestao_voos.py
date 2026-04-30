@@ -20,7 +20,7 @@ from datetime import datetime
 
 # Destino
 BRONZE_PATH = "/Volumes/workspace/default/camada_bronze/"
-BBOX_VOOS   = "lamin=-30.5&lomin=-52.0&lamax=-23.0&lomax=-45.5"
+BBOX_VOOS = "lamin=-32.0&lomin=-55.0&lamax=-22.0&lomax=-43.0"
 
 # Credenciais
 OPENSKY_CLIENT_ID = dbutils.secrets.get(scope="aero_clima_secrets", key="opensky_client_id")

@@ -18,6 +18,7 @@
 
 from pyspark.sql import functions as F
 from pyspark.sql.types import StructType, StructField, StringType, FloatType, DoubleType
+from pyspark.sql.window import Window
 
 CATALOG  = "workspace"
 DATABASE = "default"
@@ -79,11 +80,29 @@ print(f"Log: Dimensao {TABLE_DIM_AIRPORTS} atualizada com exito.")
 # COMMAND ----------
 
 try:
-    df_voos  = spark.read.table(TABLE_VOOS_SILVER)
-    df_clima = spark.read.table(TABLE_CLIMA_SILVER)
+    df_voos_raw = spark.read.table(TABLE_VOOS_SILVER)
+    df_clima_raw = spark.read.table(TABLE_CLIMA_SILVER)
 except Exception as e:
-    print(f"Log: Tabelas Silver ainda nao existem ou estao inacessiveis: {e}")
+    print(f"Log: Tabelas inacessiveis: {e}")
     dbutils.notebook.exit("Sem dados na Silver.")
+
+# 1. Pega apenas a leitura de clima mais recente de cada aeroporto
+window_clima = Window.partitionBy("aeroporto_sigla").orderBy(F.col("timestamp_coleta").desc())
+df_clima = (
+    df_clima_raw
+    .withColumn("rn", F.row_number().over(window_clima))
+    .filter(F.col("rn") == 1)
+    .drop("rn")
+)
+
+# 2. Pega apenas o status mais recente de cada avião
+window_voos = Window.partitionBy("icao24").orderBy(F.col("timestamp_coleta").desc())
+df_voos = (
+    df_voos_raw
+    .withColumn("rn", F.row_number().over(window_voos))
+    .filter(F.col("rn") == 1)
+    .drop("rn")
+)
 
 # 3.1 Geofencing
 df_voos_geo = df_voos.withColumn(
@@ -93,7 +112,7 @@ df_voos_geo = df_voos.withColumn(
      .otherwise("GRU")
 )
 
-# 3.2 Join Relacional (Left Join protege os voos caso o sensor de clima falhe)
+# 3.2 Join Relacional (Left Join)
 df_joined = df_voos_geo.join(
     df_clima.select(
         F.col("aeroporto_sigla"),
