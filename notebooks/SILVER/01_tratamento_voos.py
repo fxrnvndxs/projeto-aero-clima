@@ -2,20 +2,24 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Camada Silver: Processamento de Voos
-# MAGIC **Projeto:** Aero Clima | **Modulo:** Tratamento OpenSky | **Versao:** 3.0 (Modular)
+# MAGIC **Projeto:** Aero Clima | **Modulo:** Tratamento OpenSky | **Versao:** 3.2 (Data Contract Integrado)
 # MAGIC
-# MAGIC Responsavel pela leitura, validacao de contrato (Schema), explode dos arrays 
-# MAGIC e persistencia tabular otimizada (Append-only).
+# MAGIC Responsavel pela leitura, validacao de contrato orientada a objetos, 
+# MAGIC explode dos arrays e persistencia tabular otimizada (Append-only).
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 1. Configuracao e Dependencias
+# MAGIC ## 1. Configuracao, Dependencias e Classes Base
 
 # COMMAND ----------
 
 from pyspark.sql import functions as F
 from pyspark.sql.types import LongType, FloatType, BooleanType
+import logging
+
+# Configuracao de Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 BRONZE_PATH  = "/Volumes/workspace/default/camada_bronze"
 FLIGHTS_GLOB = f"{BRONZE_PATH}/flights_*.json"
@@ -23,6 +27,34 @@ FLIGHTS_GLOB = f"{BRONZE_PATH}/flights_*.json"
 CATALOG  = "workspace"
 DATABASE = "default"
 TABLE_VOOS_SILVER = f"{CATALOG}.{DATABASE}.voos_silver"
+
+class ContractViolationError(Exception):
+    """Excecao customizada para quebra de contrato de dados."""
+    pass
+
+class DataContractValidator:
+    """
+    Simula o comportamento de frameworks como Great Expectations, 
+    isolando a logica de Data Quality do fluxo de transformacao.
+    """
+    def __init__(self, df, expected_schema, layer_name):
+        self.df = df
+        self.expected_schema = set(expected_schema)
+        self.layer_name = layer_name
+        self.missing_columns = set()
+
+    def expect_all_columns_to_exist(self):
+        actual_cols = set(self.df.columns)
+        self.missing_columns = self.expected_schema - actual_cols
+        return len(self.missing_columns) == 0
+
+    def validate_or_fail(self):
+        if not self.expect_all_columns_to_exist():
+            error_msg = f"FALHA DE CONTRATO ({self.layer_name}): Colunas ausentes no payload: {self.missing_columns}"
+            logging.error(error_msg)
+            raise ContractViolationError(error_msg)
+        
+        logging.info(f"Data Contract [PASSOU]: Schema validado com sucesso para a camada {self.layer_name}.")
 
 # COMMAND ----------
 
@@ -34,20 +66,18 @@ TABLE_VOOS_SILVER = f"{CATALOG}.{DATABASE}.voos_silver"
 try:
     df_voos_raw = spark.read.option("multiline", "true").json(FLIGHTS_GLOB)
 except Exception as e:
-    print(f"Log: Nenhum arquivo de voos encontrado ou erro de leitura: {e}")
+    logging.warning(f"Nenhum arquivo de voos encontrado ou erro de leitura: {e}")
     dbutils.notebook.exit("Sem dados para processar.")
 
-# Validacao estrutural de metadados
-expected_cols = {"time", "states"}
-actual_cols   = set(df_voos_raw.columns)
-missing       = expected_cols - actual_cols
+# Aplicacao do Contrato de Dados usando a classe instanciada
+validator = DataContractValidator(
+    df=df_voos_raw, 
+    expected_schema=["time", "states"], 
+    layer_name="Silver - Voos"
+)
 
-if missing:
-    raise ValueError(f"FALHA DE CONTRATO: Schema inesperado nos dados de voos. Colunas ausentes: {missing}")
-
-print("Validacao de contrato concluida: Estrutura JSON reconhecida.")
-
-# COMMAND ----------
+# Se falhar, o pipeline para aqui disparando o ContractViolationError
+validator.validate_or_fail()
 
 # MAGIC %md
 # MAGIC ## 3. Transformacao e Tipagem Forte
@@ -92,37 +122,3 @@ df_voos_silver = (
 )
 
 print(f"Processamento concluido. Registros inseridos na tabela {TABLE_VOOS_SILVER}.")
-
-# COMMAND ----------
-
-from pyspark.sql import functions as F
-from datetime import datetime
-
-# Criamos um dataframe inicial
-voo_fantasma = spark.createDataFrame([
-    ("MOCK_POA_01", -29.99, -51.17, 15.0, datetime.now())
-], ["icao24", "latitude", "longitude", "velocity", "timestamp_coleta"])
-
-# Adicionamos as colunas faltantes e forçamos o cast para Float (FloatType)
-voo_fantasma_completo = (
-    voo_fantasma
-    .withColumn("latitude", F.col("latitude").cast("float"))
-    .withColumn("longitude", F.col("longitude").cast("float"))
-    .withColumn("callsign", F.lit("TEST_POA"))
-    .withColumn("origin_country", F.lit("Brazil"))
-    .withColumn("on_ground", F.lit(False))
-    .withColumn("velocity_ms", F.col("velocity").cast("float"))
-    .withColumn("true_track_deg", F.lit(0.0).cast("float"))
-    .withColumn("vertical_rate_ms", F.lit(0.0).cast("float"))
-    .drop("velocity")
-)
-
-# Injetamos na tabela Silver
-(
-    voo_fantasma_completo.write
-    .format("delta")
-    .mode("append")
-    .saveAsTable("workspace.default.voos_silver")
-)
-
-print("Voo fantasma inserido com sucesso em POA!")

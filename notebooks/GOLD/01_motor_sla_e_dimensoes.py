@@ -2,12 +2,12 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # Camada Gold: Motor de SLA e Dimensoes Estaticas
-# MAGIC **Projeto:** Aero Clima | **Modulo:** Regras de Negocio | **Versao:** 3.0 (Modular)
+# MAGIC **Projeto:** Aero Clima | **Modulo:** Regras de Negocio | **Versao:** 4.0 (Star Schema Raiz)
 # MAGIC
 # MAGIC Responsavel por:
-# MAGIC 1. Atualizar a tabela Dimensao de Aeroportos (Star Schema).
-# MAGIC 2. Realizar o cruzamento espacial (Geofencing) entre voos e clima.
-# MAGIC 3. Aplicar o motor de regras corporativas para definicao de Risco e SLA.
+# MAGIC 1. Atualizar as Dimensoes (Aeroportos, Risco, Condicao Climatica).
+# MAGIC 2. Realizar o cruzamento espacial (Geofencing).
+# MAGIC 3. Aplicar o motor de regras corporativas gerando apenas FKs para a Fato.
 
 # COMMAND ----------
 
@@ -17,7 +17,7 @@
 # COMMAND ----------
 
 from pyspark.sql import functions as F
-from pyspark.sql.types import StructType, StructField, StringType, FloatType, DoubleType
+from pyspark.sql.types import StructType, StructField, StringType, FloatType, DoubleType, IntegerType
 from pyspark.sql.window import Window
 
 CATALOG  = "workspace"
@@ -25,8 +25,10 @@ DATABASE = "default"
 
 TABLE_VOOS_SILVER  = f"{CATALOG}.{DATABASE}.voos_silver"
 TABLE_CLIMA_SILVER = f"{CATALOG}.{DATABASE}.clima_silver"
-TABLE_GOLD_MONITOR = f"{CATALOG}.{DATABASE}.monitor_operacional_gold" # Tabela temporaria de processamento
+TABLE_GOLD_MONITOR = f"{CATALOG}.{DATABASE}.monitor_operacional_gold" 
 TABLE_DIM_AIRPORTS = f"{CATALOG}.{DATABASE}.dim_aeroportos"
+TABLE_DIM_RISCO    = f"{CATALOG}.{DATABASE}.dim_risco"
+TABLE_DIM_CONDICAO = f"{CATALOG}.{DATABASE}.dim_condicao"
 
 # Limites Operacionais (m/s)
 WIND_LIMITS = {
@@ -41,10 +43,11 @@ MED_RISK_CONDITIONS  = ["Rain", "Drizzle", "Fog", "Mist", "Haze"]
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2. Carga da Dimensao Aeroportos (Overwrite)
+# MAGIC ## 2. Carga das Dimensoes (Star Schema)
 
 # COMMAND ----------
 
+# 2.1 Dimensao Aeroportos
 AIRPORTS_SCHEMA = StructType([
     StructField("sigla", StringType(), nullable=False),
     StructField("nome_aeroporto", StringType(), nullable=False),
@@ -62,49 +65,51 @@ airports_data = [
     ("POA", "Salgado Filho", "Porto Alegre", "RS", -29.9944, -51.1713, 11.0, 7.5),
 ]
 
-df_dim_aeroportos = spark.createDataFrame(airports_data, schema=AIRPORTS_SCHEMA)
+spark.createDataFrame(airports_data, schema=AIRPORTS_SCHEMA).write.format("delta").mode("overwrite").saveAsTable(TABLE_DIM_AIRPORTS)
 
-(
-    df_dim_aeroportos.write
-    .format("delta")
-    .mode("overwrite")
-    .saveAsTable(TABLE_DIM_AIRPORTS)
-)
-print(f"Log: Dimensao {TABLE_DIM_AIRPORTS} atualizada com exito.")
+# 2.2 Dimensao Risco (Exigencia do Mentor)
+RISK_SCHEMA = StructType([
+    StructField("id_risco", IntegerType(), nullable=False),
+    StructField("nivel_risco", StringType(), nullable=False),
+    StructField("status_sla", StringType(), nullable=False),
+    StructField("alerta_sla", StringType(), nullable=False)
+])
+
+risk_data = [
+    (1, "NORMAL", "OPERACIONAL", "OPERACAO NORMAL"),
+    (2, "MEDIO", "ATENCAO", "MONITORAR"),
+    (3, "ALTO", "CRITICO", "INTERRUPCAO IMINENTE")
+]
+
+spark.createDataFrame(risk_data, schema=RISK_SCHEMA).write.format("delta").mode("overwrite").saveAsTable(TABLE_DIM_RISCO)
+print(f"Log: Dimensoes estaticas atualizadas.")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 3. Integracao e Motor de Risco
+# MAGIC ## 3. Integracao e Motor de Risco (Gerando FKs)
 
 # COMMAND ----------
 
-try:
-    df_voos_raw = spark.read.table(TABLE_VOOS_SILVER)
-    df_clima_raw = spark.read.table(TABLE_CLIMA_SILVER)
-except Exception as e:
-    print(f"Log: Tabelas inacessiveis: {e}")
-    dbutils.notebook.exit("Sem dados na Silver.")
+df_voos_raw = spark.read.table(TABLE_VOOS_SILVER)
+df_clima_raw = spark.read.table(TABLE_CLIMA_SILVER)
 
-# 1. Pega apenas a leitura de clima mais recente de cada aeroporto
+# Pega o dado mais recente
 window_clima = Window.partitionBy("aeroporto_sigla").orderBy(F.col("timestamp_coleta").desc())
-df_clima = (
-    df_clima_raw
-    .withColumn("rn", F.row_number().over(window_clima))
-    .filter(F.col("rn") == 1)
-    .drop("rn")
-)
+df_clima = df_clima_raw.withColumn("rn", F.row_number().over(window_clima)).filter(F.col("rn") == 1).drop("rn")
 
-# 2. Pega apenas o status mais recente de cada avião
 window_voos = Window.partitionBy("icao24").orderBy(F.col("timestamp_coleta").desc())
-df_voos = (
-    df_voos_raw
-    .withColumn("rn", F.row_number().over(window_voos))
-    .filter(F.col("rn") == 1)
-    .drop("rn")
-)
+df_voos = df_voos_raw.withColumn("rn", F.row_number().over(window_voos)).filter(F.col("rn") == 1).drop("rn")
 
-# 3.1 Geofencing
+# 2.3 Dimensao Condicao Climatica Dinamica (Surrogate Key via Hash)
+df_dim_condicao = (
+    df_clima.select("condicao_climatica", "descricao_climatica")
+    .dropDuplicates()
+    .withColumn("id_condicao", F.sha2(F.concat_ws("|", F.col("condicao_climatica"), F.col("descricao_climatica")), 256))
+)
+df_dim_condicao.write.format("delta").mode("overwrite").saveAsTable(TABLE_DIM_CONDICAO)
+
+# Geofencing
 df_voos_geo = df_voos.withColumn(
     "aeroporto_proximo",
     F.when(F.col("latitude") < -28.0, "POA")
@@ -112,54 +117,32 @@ df_voos_geo = df_voos.withColumn(
      .otherwise("GRU")
 )
 
-# 3.2 Join Relacional (Left Join)
+# Join Relacional (CORREÇÃO APLICADA AQUI)
+# Renomeamos a coluna do df_clima na hora do join para evitar duplicidade no Delta Lake
 df_joined = df_voos_geo.join(
-    df_clima.select(
-        F.col("aeroporto_sigla"),
-        F.col("timestamp_coleta").alias("ts_clima"),
-        F.col("temperatura_c"),
-        F.col("umidade_pct"),
-        F.col("vento_velocidade_ms"),
-        F.col("vento_direcao_graus"),
-        F.col("condicao_climatica"),
-        F.col("descricao_climatica"),
-        F.col("visibilidade_m"),
-    ),
+    df_clima.withColumnRenamed("timestamp_coleta", "timestamp_coleta_clima"),
     on=df_voos_geo["aeroporto_proximo"] == F.col("aeroporto_sigla"),
-    how="left",
+    how="left"
 )
 
-# 3.3 Motor de Regras (Avaliacao Dinamica)
-def build_risk_expression():
-    expr = F.lit("NORMAL")
-
+# Motor de Regras: Retornando apenas o id_risco (1=Normal, 2=Medio, 3=Alto)
+def build_fk_risk_expression():
+    expr = F.lit(1) # Default Normal
     for iata, limits in WIND_LIMITS.items():
-        expr = F.when((F.col("aeroporto_proximo") == iata) & (F.col("vento_velocidade_ms") > limits["medio"]), "MEDIO").otherwise(expr)
-    
-    expr = F.when(F.col("condicao_climatica").isin(MED_RISK_CONDITIONS), "MEDIO").otherwise(expr)
-
+        expr = F.when((F.col("aeroporto_proximo") == iata) & (F.col("vento_velocidade_ms") > limits["medio"]), 2).otherwise(expr)
+    expr = F.when(F.col("condicao_climatica").isin(MED_RISK_CONDITIONS), 2).otherwise(expr)
     for iata, limits in WIND_LIMITS.items():
-        expr = F.when((F.col("aeroporto_proximo") == iata) & (F.col("vento_velocidade_ms") > limits["alto"]), "ALTO").otherwise(expr)
-
-    expr = F.when(F.col("condicao_climatica").isin(HIGH_RISK_CONDITIONS), "ALTO").otherwise(expr)
+        expr = F.when((F.col("aeroporto_proximo") == iata) & (F.col("vento_velocidade_ms") > limits["alto"]), 3).otherwise(expr)
+    expr = F.when(F.col("condicao_climatica").isin(HIGH_RISK_CONDITIONS), 3).otherwise(expr)
     return expr
 
 df_gold = (
     df_joined
-    .withColumn("nivel_risco", build_risk_expression())
-    .withColumn(
-        "status_sla",
-        F.when(F.col("nivel_risco") == "ALTO",   "CRITICO")
-         .when(F.col("nivel_risco") == "MEDIO",  "ATENCAO")
-         .otherwise("OPERACIONAL")
-    )
-    .withColumn(
-        "alerta_sla",
-        F.when(F.col("nivel_risco") == "ALTO",  "INTERRUPCAO IMINENTE")
-         .when(F.col("nivel_risco") == "MEDIO", "MONITORAR")
-         .otherwise("OPERACAO NORMAL")
-    )
+    .withColumn("fk_risco", build_fk_risk_expression())
+    .withColumn("fk_condicao", F.sha2(F.concat_ws("|", F.col("condicao_climatica"), F.col("descricao_climatica")), 256))
     .withColumn("timestamp_processamento", F.current_timestamp())
+    # Removendo as strings pesadas que sujavam a fato
+    .drop("condicao_climatica", "descricao_climatica")
 )
 
 # COMMAND ----------
@@ -169,7 +152,6 @@ df_gold = (
 
 # COMMAND ----------
 
-# Grava uma tabela intermediaria (Overwrite) para que a proxima etapa faca a validacao limpa
 (
     df_gold.write
     .format("delta")
@@ -177,5 +159,4 @@ df_gold = (
     .option("overwriteSchema", "true") 
     .saveAsTable(TABLE_GOLD_MONITOR)
 )
-
-print(f"Processamento concluido. Visao intermediaria gravada em {TABLE_GOLD_MONITOR}.")
+print(f"Processamento concluido. Visao intermediaria gravada.")
